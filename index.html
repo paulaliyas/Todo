@@ -113,8 +113,8 @@ html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);font-famil
 .section-count{font-size:11px;color:var(--text3);font-weight:500}
 
 /* TASK CARD */
-.task-card-wrap{position:relative;overflow:hidden;border-radius:var(--rs);margin-bottom:8px;animation:fadeUp .3s ease both}
-.card-bg{position:absolute;inset:0;display:flex;align-items:center;padding:0 20px;border-radius:var(--rs)}
+.task-card-wrap{position:relative;overflow:hidden;border-radius:var(--rs);margin-bottom:8px;animation:fadeUp .3s ease both; background: var(--surface2);}
+.card-bg{position:absolute;inset:0;display:flex;align-items:center;padding:0 20px;border-radius:var(--rs);opacity:0;transition:opacity .15s}
 .card-bg.done-bg{background:var(--green);justify-content:flex-start;color:white;font-size:22px}
 .card-bg.del-bg{background:var(--red);justify-content:flex-end;color:white;font-size:22px}
 .task-card{position:relative;background:var(--surface);border-radius:var(--rs);padding:13px 14px;display:flex;align-items:flex-start;gap:11px;box-shadow:var(--shadow-sm);border:1px solid var(--border);cursor:pointer;user-select:none;will-change:transform}
@@ -247,13 +247,31 @@ html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);font-famil
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{to{transform:rotate(360deg)}}
 .pb-fab{height:calc(80px + var(--safe-bottom))}
+
+/* CONFIRM POPUP UI */
+#confirm-dialog {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9);
+    background: var(--surface); z-index: 110; border-radius: var(--r); padding: 24px;
+    width: 300px; max-width: 85vw; box-shadow: var(--shadow-lg); border: 1px solid var(--border);
+    opacity: 0; pointer-events: none; transition: all .25s cubic-bezier(.32,.72,0,1);
+}
+#confirm-dialog.show { opacity: 1; pointer-events: all; transform: translate(-50%, -50%) scale(1); }
+.confirm-title { font-family: 'DM Serif Display', serif; font-size: 20px; margin-bottom: 8px; color: var(--text); }
+.confirm-msg { font-size: 14px; line-height: 1.5; color: var(--text2); margin-bottom: 24px; }
+.confirm-actions { display: flex; gap: 12px; }
+.confirm-btn { flex: 1; padding: 12px; border-radius: var(--rs); border: none; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s; }
+#confirm-no { background: var(--surface2); color: var(--text); }
+#confirm-no:active { background: var(--border); }
+#confirm-yes { background: var(--accent); color: white; }
+#confirm-yes:active { background: #1d4ed8; }
+#confirm-yes.danger { background: var(--red); color: white; }
+#confirm-yes.danger:active { background: #dc2626; }
 </style>
 </head>
 <body>
 <div id="app">
   <div id="overlay"></div>
 
-  <!-- SIDE MENU -->
   <nav id="side-menu">
     <div class="menu-header">
       <div class="menu-logo">Foc<span>.</span>us</div>
@@ -270,14 +288,12 @@ html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);font-famil
     <div class="menu-footer"><div class="menu-version">Focus v1.0.0 · Made with ♥</div></div>
   </nav>
 
-  <!-- TOPBAR -->
   <header id="topbar">
     <button class="icon-btn" id="hamburger-btn">☰</button>
     <div class="topbar-title" id="topbar-title">Home</div>
     <button class="icon-btn" id="search-btn" style="font-size:18px">🔍</button>
   </header>
 
-  <!-- CALENDAR -->
   <div id="cal-header">
     <div class="cal-month-nav">
       <button class="cal-nav-btn" id="cal-prev">‹</button>
@@ -287,7 +303,6 @@ html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);font-famil
     <div class="cal-days-row" id="cal-days"></div>
   </div>
 
-  <!-- MAIN -->
   <div id="main">
     <div class="view active" id="view-home"><div id="home-content"></div></div>
     <div class="view" id="view-all"><div id="all-content"></div></div>
@@ -324,7 +339,6 @@ html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);font-famil
   <button id="fab">+</button>
 </div>
 
-<!-- QUICK MENU -->
 <div id="quick-menu">
   <div class="qm-item" data-action="edit">✏️ Edit</div>
   <div class="qm-item" data-action="duplicate">⧉ Duplicate</div>
@@ -332,7 +346,6 @@ html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);font-famil
   <div class="qm-item danger" data-action="delete">🗑️ Delete</div>
 </div>
 
-<!-- ADD/EDIT SHEET -->
 <div class="sheet-overlay" id="edit-overlay"></div>
 <div class="bottom-sheet" id="edit-sheet" style="z-index:70">
   <div class="sheet-handle"></div>
@@ -377,7 +390,6 @@ html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);font-famil
   </div>
 </div>
 
-<!-- DETAIL SHEET -->
 <div class="sheet-overlay" id="detail-overlay" style="z-index:75"></div>
 <div class="bottom-sheet" id="detail-sheet" style="z-index:80">
   <div class="sheet-handle"></div>
@@ -388,9 +400,19 @@ html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);font-famil
   <div class="sheet-body" id="detail-body"></div>
 </div>
 
+<div class="sheet-overlay" id="confirm-overlay" style="z-index:100"></div>
+<div id="confirm-dialog">
+  <div class="confirm-title" id="confirm-title">Confirm Action</div>
+  <div class="confirm-msg" id="confirm-msg">Are you sure?</div>
+  <div class="confirm-actions">
+    <button class="confirm-btn" id="confirm-no">Cancel</button>
+    <button class="confirm-btn" id="confirm-yes">Yes</button>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════
-// STATE
+// STATE & CONFIG
 // ══════════════════════════════════════════
 let tasks = [], settings = { notif: false, summaryTime: '08:00' };
 let currentView = 'home', editingId = null;
@@ -401,6 +423,36 @@ let suggestTimeout = null, lastSuggestTitle = '';
 
 const MODEL = 'claude-sonnet-4-20250514';
 const API = 'https://api.anthropic.com/v1/messages';
+
+// ══════════════════════════════════════════
+// CONFIRMATION POPUP
+// ══════════════════════════════════════════
+let confirmCallback = null;
+let cancelCallback = null;
+
+function askConfirm(title, msg, onYes, onNo, isDanger = false) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = msg;
+  const yesBtn = document.getElementById('confirm-yes');
+  yesBtn.className = 'confirm-btn' + (isDanger ? ' danger' : '');
+  confirmCallback = onYes;
+  cancelCallback = onNo;
+  document.getElementById('confirm-overlay').classList.add('show');
+  document.getElementById('confirm-dialog').classList.add('show');
+}
+
+function closeConfirm(res) {
+  document.getElementById('confirm-overlay').classList.remove('show');
+  document.getElementById('confirm-dialog').classList.remove('show');
+  if (res && confirmCallback) confirmCallback();
+  else if (!res && cancelCallback) cancelCallback();
+  confirmCallback = null;
+  cancelCallback = null;
+}
+
+document.getElementById('confirm-no').onclick = () => closeConfirm(false);
+document.getElementById('confirm-yes').onclick = () => closeConfirm(true);
+document.getElementById('confirm-overlay').onclick = () => closeConfirm(false);
 
 // ══════════════════════════════════════════
 // STORAGE
@@ -612,27 +664,54 @@ function attachCards(container) {
     setupSwipe(card.closest('.task-card-wrap'), id);
   });
   container.querySelectorAll('[data-check]').forEach(check => {
-    check.addEventListener('click', e=>{ e.stopPropagation(); toggleComplete(check.dataset.check); });
+    check.addEventListener('click', e=>{ 
+      e.stopPropagation(); 
+      const id = check.dataset.check;
+      const isDone = tasks.find(t=>t.id===id).status === 'completed';
+      askConfirm('Task Status', isDone ? 'Mark this task as incomplete?' : 'Mark this task as completed?', () => toggleComplete(id));
+    });
   });
 }
 
 function setupSwipe(wrap, id) {
   let sx=0, sy=0, dx=0, axis=null, going=false;
   const card = wrap.querySelector('.task-card');
+  const doneBg = wrap.querySelector('.done-bg');
+  const delBg = wrap.querySelector('.del-bg');
+
   wrap.addEventListener('touchstart', e=>{ sx=e.touches[0].clientX; sy=e.touches[0].clientY; dx=0; axis=null; going=true; card.style.transition='none'; },{passive:true});
   wrap.addEventListener('touchmove', e=>{
     if(!going) return;
     const cx=e.touches[0].clientX-sx, cy=e.touches[0].clientY-sy;
     if(!axis) { if(Math.abs(cx)>8||Math.abs(cy)>8) axis=Math.abs(cx)>Math.abs(cy)?'x':'y'; }
     if(axis!=='x') return;
-    e.preventDefault(); dx=cx; card.style.transform=`translateX(${dx}px)`;
+    e.preventDefault(); dx=cx; 
+    card.style.transform=`translateX(${dx}px)`;
+    
+    if (dx > 0) { doneBg.style.opacity = 1; delBg.style.opacity = 0; }
+    else if (dx < 0) { doneBg.style.opacity = 0; delBg.style.opacity = 1; }
   },{passive:false});
+  
   wrap.addEventListener('touchend', ()=>{
     if(!going||axis!=='x'){going=false;return;} going=false;
     card.style.transition='transform .25s cubic-bezier(.32,.72,0,1)';
-    if(dx>80){ card.style.transform='translateX(110%)'; setTimeout(()=>toggleComplete(id),220); }
-    else if(dx<-80){ card.style.transform='translateX(-110%)'; setTimeout(()=>softDelete(id),220); }
-    else card.style.transform='translateX(0)';
+    if(dx>80) {
+      card.style.transform='translateX(80px)'; 
+      askConfirm('Complete Task', 'Are you sure you want to change the completion status?', 
+          () => toggleComplete(id), 
+          () => { card.style.transform='translateX(0)'; doneBg.style.opacity = 0; });
+    }
+    else if(dx<-80) {
+      card.style.transform='translateX(-80px)'; 
+      askConfirm('Delete Task', 'Are you sure you want to delete this task?', 
+          () => softDelete(id), 
+          () => { card.style.transform='translateX(0)'; delBg.style.opacity = 0; }, true);
+    }
+    else {
+      card.style.transform='translateX(0)';
+      doneBg.style.opacity = 0;
+      delBg.style.opacity = 0;
+    }
   });
 }
 
@@ -696,8 +775,8 @@ function duplicateTask(id) {
   tasks.push({...t,id:uid(),title:t.title+' (copy)',createdAt:Date.now(),status:'upcoming',completedAt:null,deletedAt:null});
   save(); renderView(currentView);
 }
-function clearCompleted() { if(!confirm('Remove all completed tasks?')) return; tasks=tasks.filter(t=>t.status!=='completed'); save(); renderView(currentView); }
-function emptyTrash() { if(!confirm('Permanently delete all trashed tasks?')) return; tasks=tasks.filter(t=>t.status!=='deleted'); save(); renderView(currentView); }
+function clearCompleted() { askConfirm('Clear Completed', 'Remove all completed tasks?', () => { tasks=tasks.filter(t=>t.status!=='completed'); save(); renderView(currentView); }, null, true); }
+function emptyTrash() { askConfirm('Empty Trash', 'Permanently delete all trashed tasks?', () => { tasks=tasks.filter(t=>t.status!=='deleted'); save(); renderView(currentView); }, null, true); }
 
 // ══════════════════════════════════════════
 // SHEET (ADD/EDIT)
@@ -781,8 +860,8 @@ async function openDetail(id) {
     <div id="st-${id}">${stHTML}</div>
     <div class="detail-actions">
       <button class="d-action" onclick="closeDetail();openSheet('${id}')">✏️ Edit</button>
-      <button class="d-action" onclick="closeDetail();toggleComplete('${id}')">${task.status==='completed'?'↩ Reopen':'✓ Done'}</button>
-      <button class="d-action danger" onclick="closeDetail();softDelete('${id}')">🗑️ Delete</button>
+      <button class="d-action" onclick="closeDetail();askConfirm('Task Status', 'Change task completion status?', ()=>toggleComplete('${id}'))">${task.status==='completed'?'↩ Reopen':'✓ Done'}</button>
+      <button class="d-action danger" onclick="closeDetail();askConfirm('Delete Task', 'Delete this task?', ()=>softDelete('${id}'), null, true)">🗑️ Delete</button>
     </div>
     <div style="height:16px"></div>
   `;
@@ -793,12 +872,14 @@ function closeDetail() { document.getElementById('detail-overlay').classList.rem
 document.getElementById('detail-overlay').onclick=closeDetail;
 
 function toggleST(taskId, i) {
-  const t=tasks.find(t=>t.id===taskId); if(!t||!t.subtasks) return;
-  t.subtasks[i].done=!t.subtasks[i].done; save();
-  const el=document.getElementById('st-'+taskId);
-  if(el) el.innerHTML=t.subtasks.map((s,j)=>
-    `<div class="subtask-item"><div class="st-check ${s.done?'done':''}" onclick="toggleST('${taskId}',${j})">${s.done?'✓':''}</div><span style="${s.done?'text-decoration:line-through;color:var(--text3)':''}">${esc(s.text)}</span></div>`
-  ).join('');
+  askConfirm('Subtask', 'Toggle this subtask status?', () => {
+    const t=tasks.find(t=>t.id===taskId); if(!t||!t.subtasks) return;
+    t.subtasks[i].done=!t.subtasks[i].done; save();
+    const el=document.getElementById('st-'+taskId);
+    if(el) el.innerHTML=t.subtasks.map((s,j)=>
+      `<div class="subtask-item"><div class="st-check ${s.done?'done':''}" onclick="toggleST('${taskId}',${j})">${s.done?'✓':''}</div><span style="${s.done?'text-decoration:line-through;color:var(--text3)':''}">${esc(s.text)}</span></div>`
+    ).join('');
+  });
 }
 
 // ══════════════════════════════════════════
@@ -818,8 +899,14 @@ document.querySelectorAll('.qm-item').forEach(item=>{
     const a=item.dataset.action, id=qmTaskId; closeQM(); closeMenu();
     if(a==='edit') openSheet(id);
     else if(a==='duplicate') duplicateTask(id);
-    else if(a==='draft'){ const t=tasks.find(t=>t.id===id); if(t){t.status='draft';save();renderView(currentView);} }
-    else if(a==='delete') softDelete(id);
+    else if(a==='draft'){ 
+      askConfirm('Move to Draft', 'Save this task as a draft?', () => {
+        const t=tasks.find(t=>t.id===id); if(t){t.status='draft';save();renderView(currentView);} 
+      });
+    }
+    else if(a==='delete') {
+      askConfirm('Delete Task', 'Are you sure you want to delete this task?', () => softDelete(id), null, true);
+    }
   };
 });
 
@@ -829,12 +916,27 @@ document.querySelectorAll('.qm-item').forEach(item=>{
 async function requestNotif() {
   if(!('Notification' in window)) return;
   const p=await Notification.requestPermission();
-  if(p==='granted'){ settings.notif=true; document.getElementById('s-notif').checked=true; saveSettings(); renderHome(); scheduleDailySummary(); }
+  if(p==='granted'){ 
+    settings.notif=true; document.getElementById('s-notif').checked=true; saveSettings(); renderHome(); scheduleDailySummary(); 
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then(reg => reg.showNotification('Notifications Enabled', { body: 'You will now receive task reminders.' }));
+    } else {
+      new Notification('Notifications Enabled', { body: 'You will now receive task reminders.' });
+    }
+  }
 }
 function schedNotif(task) {
   if(!settings.notif||Notification.permission!=='granted'||!task.dueDate||!task.dueTime) return;
   const delay=new Date(task.dueDate+'T'+task.dueTime)-Date.now();
-  if(delay>0) setTimeout(()=>new Notification(task.title,{body:'This task is due now'}), delay);
+  if(delay>0) {
+    setTimeout(()=> {
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then(reg => reg.showNotification('Task Due Now', { body: task.title }));
+      } else {
+        new Notification('Task Due Now', { body: task.title });
+      }
+    }, delay);
+  }
 }
 function scheduleDailySummary() {
   if(!settings.notif||Notification.permission!=='granted') return;
@@ -843,7 +945,11 @@ function scheduleDailySummary() {
   if(next<=new Date()) next.setDate(next.getDate()+1);
   setTimeout(()=>{
     const td=todayStr(), cnt=tasks.filter(t=>t.status==='upcoming'&&t.dueDate===td).length;
-    new Notification('Good morning! 🌅',{body:`You have ${cnt} task${cnt!==1?'s':''} today. Let\'s get it done!`});
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then(reg => reg.showNotification('Good morning! 🌅', { body: `You have ${cnt} task${cnt!==1?'s':''} today.` }));
+    } else {
+      new Notification('Good morning! 🌅',{body:`You have ${cnt} task${cnt!==1?'s':''} today.`});
+    }
     scheduleDailySummary();
   }, next-new Date());
 }
@@ -999,3 +1105,4 @@ init();
 </script>
 </body>
 </html>
+```
