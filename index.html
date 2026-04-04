@@ -3,7 +3,8 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <link rel="apple-touch-icon" href="icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1516,6 +1517,17 @@
             </div>
           </div>
           <div class="s-section">
+            <div class="s-title">AI Configuration</div>
+            <div class="s-row" style="flex-direction:column;align-items:stretch;gap:8px">
+              <div>
+                <div class="s-row-label">Gemini API Key</div>
+                <div class="s-row-sub">Used for AI subtasks and suggestions</div>
+              </div>
+              <input type="password" id="s-gemini-key" class="f-input" placeholder="Enter Google Gemini API Key"
+                onkeyup="saveSettings()" onchange="saveSettings()">
+            </div>
+          </div>
+          <div class="s-section">
             <div class="s-title">Data</div>
             <div class="s-row"><button class="s-btn red" onclick="clearCompleted()"><span>Clear All
                   Completed</span><span>›</span></button></div>
@@ -1530,7 +1542,7 @@
             </div>
             <div class="s-row">
               <div class="s-row-label">AI Model</div>
-              <div style="font-size:13px;color:var(--text2)">claude-sonnet-4-20250514</div>
+              <div style="font-size:13px;color:var(--text2)">Gemini</div>
             </div>
           </div>
         </div>
@@ -1670,11 +1682,18 @@
       try { settings = { notif: false, summaryTime: '08:00', ...JSON.parse(localStorage.getItem('focus_settings') || '{}') }; } catch { }
       document.getElementById('s-notif').checked = settings.notif;
       document.getElementById('s-time').value = settings.summaryTime;
+      document.getElementById('s-gemini-key').value = localStorage.getItem('gemini_api_token') || '';
     }
     function saveSettings() {
       settings.notif = document.getElementById('s-notif').checked;
       settings.summaryTime = document.getElementById('s-time').value;
       localStorage.setItem('focus_settings', JSON.stringify(settings));
+      const apiKey = document.getElementById('s-gemini-key').value.trim();
+      if (apiKey) {
+        localStorage.setItem('gemini_api_token', apiKey);
+      } else {
+        localStorage.removeItem('gemini_api_token');
+      }
     }
     function purge() {
       const cutoff = Date.now() - 30 * 864e5;
@@ -2068,7 +2087,7 @@
     ${task.dueDate ? `<div class="d-row"><span class="d-icon">📅</span><span class="d-label">Due</span><span class="d-val">${fmtDT(task.dueDate, task.dueTime)}</span></div>` : ''}
     <div class="d-row"><span class="d-icon">🕐</span><span class="d-label">Created</span><span class="d-val">${new Date(task.createdAt).toLocaleDateString()}</span></div>
     ${nudgeHtml}
-    <div class="subtasks-head"><span>Subtasks</span><button class="ai-sub-btn" onclick="genSubtasks('${id}')">✨ AI Generate</button></div>
+    <div class="subtasks-head"><span>Subtasks</span><div style="display:flex;gap:8px;"><button class="ai-sub-btn" onclick="addManualST('${id}')">➕ Add</button><button class="ai-sub-btn" onclick="genSubtasks('${id}')">✨ AI Generate</button></div></div>
     <div id="st-${id}">${stHTML}</div>
     <div class="detail-actions">
       <button class="d-action" onclick="closeDetail();openSheet('${id}')">✏️ Edit</button>
@@ -2092,6 +2111,21 @@
           `<div class="subtask-item"><div class="st-check ${s.done ? 'done' : ''}" onclick="toggleST('${taskId}',${j})">${s.done ? '✓' : ''}</div><span style="${s.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${esc(s.text)}</span></div>`
         ).join('');
       });
+    }
+
+    function addManualST(taskId) {
+      const text = prompt('Enter a new subtask:');
+      if (text && text.trim()) {
+        const t = tasks.find(t => t.id === taskId);
+        if (!t) return;
+        if (!t.subtasks) t.subtasks = [];
+        t.subtasks.push({ text: text.trim(), done: false });
+        save();
+        const el = document.getElementById('st-' + taskId);
+        if (el) el.innerHTML = t.subtasks.map((s, j) =>
+          `<div class="subtask-item"><div class="st-check ${s.done ? 'done' : ''}" onclick="toggleST('${taskId}',${j})">${s.done ? '✓' : ''}</div><span style="${s.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${esc(s.text)}</span></div>`
+        ).join('');
+      }
     }
 
     // ══════════════════════════════════════════
@@ -2152,7 +2186,7 @@
       if (!('Notification' in window)) return;
       const p = await Notification.requestPermission();
       if (p === 'granted') {
-        settings.notif = true; document.getElementById('s-notif').checked = true; saveSettings(); renderHome(); scheduleDailySummary();
+        settings.notif = true; document.getElementById('s-notif').checked = true; saveSettings(); renderHome(); scheduleDailySummary(); scheduleLearningNudges();
         sendNotification('Notifications Enabled', 'You will now receive task reminders.');
       }
     }
@@ -2180,12 +2214,39 @@
       }, next - new Date());
     }
 
+    async function triggerLearningNudge() {
+      scheduleLearningNudges(); // Schedule next
+      try {
+        const prompt = 'Write a single, highly personalized, practical 1-sentence motivation or learning suggestion about a soft skill or technical topic, without using cliches. Give a hint to peak interest to start. Maximum one sentence.';
+        const hint = await callClaude(prompt, 'You are a concise, insightful mentor. Always reply with just one sentence.');
+        if (hint) sendNotification('Learning Nudge 🚀', hint.replace(/['"]/g, ''));
+      } catch (e) {
+        console.error('Learning nudge error:', e);
+      }
+    }
+
+    function scheduleLearningNudges() {
+      if (!settings.notif || Notification.permission !== 'granted') return;
+      const now = new Date();
+      const times = [{ h: 9, m: 0 }, { h: 12, m: 0 }, { h: 18, m: 0 }];
+      let next = null;
+      for (let t of times) {
+        let d = new Date(); d.setHours(t.h, t.m, 0, 0);
+        if (d > now) { next = d; break; }
+      }
+      if (!next) {
+        next = new Date(); next.setDate(next.getDate() + 1);
+        next.setHours(times[0].h, times[0].m, 0, 0);
+      }
+      setTimeout(triggerLearningNudge, next - now);
+    }
+
     // ══════════════════════════════════════════
     // AI
     // ══════════════════════════════════════════
     async function callClaude(prompt, system) {
       try {
-        const GEMINI_API_KEY = 'null'; // Add your Google Gemini API Key here
+        const GEMINI_API_KEY = localStorage.getItem('gemini_api_token') || 'null'; // Add your Google Gemini API Key here
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
           method: 'POST',
           headers: {
@@ -2341,6 +2402,7 @@ Return ONLY a JSON array of strings: ["step 1","step 2",...]  No markdown, no ot
       switchView('home');
       if (settings.notif && Notification.permission === 'granted') {
         scheduleDailySummary();
+        scheduleLearningNudges();
         tasks.filter(t => t.status === 'upcoming').forEach(schedNotif);
       }
     }
