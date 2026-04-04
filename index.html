@@ -1776,15 +1776,21 @@
 
       // Daily summary
       const today = todayStr();
-      const sk = 'focus_summary_' + today;
+      const tw = weekRange(0), todayTasks = upcoming.filter(t => t.dueDate === today);
+      const wt = upcoming.filter(t => inRange(t, tw.s, tw.e) && !isOverdue(t));
+      const sk = `focus_summary_${today}_${todayTasks.length}_${overdue.length}_${wt.length}`;
       let sumText = localStorage.getItem(sk);
       if (!sumText) {
-        const tw = weekRange(0), todayTasks = upcoming.filter(t => t.dueDate === today);
-        const wt = upcoming.filter(t => inRange(t, tw.s, tw.e) && !isOverdue(t));
         sumText = `You have ${todayTasks.length} task${todayTasks.length !== 1 ? 's' : ''} today, ${overdue.length} overdue, and ${wt.length} due this week.`;
-        aiDailySummary(upcoming.length, overdue.length, wt.length).then(s => { if (s) { localStorage.setItem(sk, s); } });
+        aiDailySummary(todayTasks.length, overdue.length, wt.length).then(s => {
+          if (s) {
+            localStorage.setItem(sk, s);
+            const el = document.getElementById('summary-text-el');
+            if (el && el.dataset.sk === sk) el.textContent = s;
+          }
+        });
       }
-      html += `<div class="summary-card"><div class="summary-label">✨ Daily Briefing</div><div class="summary-text">${esc(sumText)}</div></div>`;
+      html += `<div class="summary-card" onclick="showTodayTasks()" style="cursor:pointer;"><div class="summary-label">✨ Daily Briefing <span style="font-size:11px;font-weight:normal;opacity:0.7">(Tap to view)</span></div><div class="summary-text" id="summary-text-el" data-sk="${sk}">${esc(sumText)}</div></div>`;
 
       // Overdue
       if (overdue.length) {
@@ -1793,7 +1799,6 @@
       }
 
       // This week
-      const tw = weekRange(0);
       const twTasks = upcoming.filter(t => !isOverdue(t) && inRange(t, tw.s, tw.e)).sort((a, b) => {
         if (a.dueDate !== b.dueDate) return a.dueDate > b.dueDate ? 1 : -1;
         return prioOrd(a.priority) - prioOrd(b.priority);
@@ -2246,10 +2251,10 @@ Return ONLY valid JSON: {"priority":"low|medium|high","category":"work|personal|
       } catch { }
     }
 
-    async function aiDailySummary(total, overdue, week) {
+    async function aiDailySummary(todayCnt, overdue, week) {
       return await callClaude(
         `Write a warm, motivating 1-2 sentence daily task summary for a task app. Be friendly.
-Stats: ${total} upcoming tasks total, ${overdue} overdue, ${week} due this week. Under 30 words, no emojis.`,
+Stats: ${todayCnt} task(s) due today, ${overdue} overdue, and ${week} due this week. Under 30 words, no emojis.`,
         'Write short friendly motivational messages. Be concise and warm.'
       );
     }
@@ -2285,8 +2290,22 @@ Return ONLY a JSON array of strings: ["step 1","step 2",...]  No markdown, no ot
     }
 
     // ══════════════════════════════════════════
-    // SEARCH
+    // SEARCH & FILTER
     // ══════════════════════════════════════════
+    function showTodayTasks() {
+      switchView('all');
+      setTimeout(() => {
+        const today = todayStr();
+        const results = tasks.filter(t => t.dueDate === today && t.status !== 'deleted' && t.status !== 'completed');
+        const el = document.getElementById('all-content');
+        let h = `<div style="padding:12px 14px;font-size:12px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.6px">Today's Tasks · ${results.length}</div>`;
+        if (results.length) { h += '<div style="padding:0 14px">'; results.forEach(t => { h += renderCard(t); }); h += '</div><div class="pb-fab"></div>'; }
+        else h += `<div class="empty"><div class="empty-icon">☀️</div><div class="empty-title">All caught up</div><div class="empty-sub">No tasks pending for today.</div></div>`;
+        el.innerHTML = h;
+        if (results.length) attachCards(el);
+      }, 120);
+    }
+
     document.getElementById('search-btn').onclick = () => {
       const q = prompt('Search tasks:'); if (!q) return;
       switchView('all');
@@ -2343,4 +2362,3 @@ Return ONLY a JSON array of strings: ["step 1","step 2",...]  No markdown, no ot
 </body>
 
 </html>
-```
