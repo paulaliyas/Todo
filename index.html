@@ -1582,6 +1582,14 @@
       </div>
       <div class="field"><label class="field-label">Due Time</label><input type="time" id="f-time" class="f-input">
       </div>
+      <div class="field"><label class="field-label">Repeat</label>
+        <select id="f-repeat" class="f-input" style="appearance: none; background: url('data:image/svg+xml;utf8,<svg fill=%22black%22 height=%2224%22 viewBox=%220 0 24 24%22 width=%2224%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/><path d=%22M0 0h24v24H0z%22 fill=%22none%22/></svg>') no-repeat right 12px center; background-size: 16px;">
+          <option value="none">None</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
       <div class="field">
         <label class="field-label">Priority</label>
         <div class="seg">
@@ -1876,8 +1884,9 @@
         <div class="task-title">${esc(task.title)}</div>
         <div class="task-meta">
           ${dt ? `<span class="task-date ${ov ? 'late' : ''}">📅 ${dt}${ov ? ' · Overdue' : ''}</span>` : ''}
+          ${task.repeat && task.repeat !== 'none' ? `<span class="badge" style="background:var(--surface2);color:var(--text2)">🔁 ${task.repeat}</span>` : ''}
           <span class="badge p-${task.priority || 'medium'}">${task.priority || 'medium'}</span>
-          <span class="badge c-${task.category || 'work'}">${task.category || 'work'}</span>
+          <span class="badge c-${task.category || 'work'}" onclick="event.stopPropagation(); filterCategory('${task.category || 'work'}')">${task.category || 'work'}</span>
         </div>
       </div>
     </div>
@@ -1991,10 +2000,30 @@
     // ══════════════════════════════════════════
     // CRUD
     // ══════════════════════════════════════════
+    function getNextDate(dateStr, repeat) {
+      if (!dateStr) dateStr = todayStr();
+      const d = new Date(dateStr + 'T12:00:00');
+      if (repeat === 'daily') d.setDate(d.getDate() + 1);
+      else if (repeat === 'weekly') d.setDate(d.getDate() + 7);
+      else if (repeat === 'monthly') d.setMonth(d.getMonth() + 1);
+      return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+    }
+
     function toggleComplete(id) {
       const t = tasks.find(t => t.id === id); if (!t) return;
-      t.status = t.status === 'completed' ? 'upcoming' : 'completed';
-      t.completedAt = t.status === 'completed' ? Date.now() : null;
+      if (t.status !== 'completed' && t.repeat && t.repeat !== 'none') {
+        const clone = JSON.parse(JSON.stringify(t));
+        clone.id = uid();
+        clone.status = 'completed';
+        clone.completedAt = Date.now();
+        clone.repeat = 'none';
+        tasks.push(clone);
+        t.dueDate = getNextDate(t.dueDate, t.repeat);
+        if (t.subtasks) t.subtasks.forEach(s => s.done = false); 
+      } else {
+        t.status = t.status === 'completed' ? 'upcoming' : 'completed';
+        t.completedAt = t.status === 'completed' ? Date.now() : null;
+      }
       save(); renderView(currentView);
     }
     function softDelete(id) {
@@ -2020,12 +2049,13 @@
       document.getElementById('f-title').value = '';
       document.getElementById('f-date').value = '';
       document.getElementById('f-time').value = '';
+      document.getElementById('f-repeat').value = 'none';
       document.getElementById('f-draft').checked = false;
       document.getElementById('ai-sug-box').innerHTML = '';
       setPriority('medium'); setCategory('work');
       if (id) {
         const t = tasks.find(t => t.id === id);
-        if (t) { document.getElementById('f-title').value = t.title || ''; document.getElementById('f-date').value = t.dueDate || ''; document.getElementById('f-time').value = t.dueTime || ''; document.getElementById('f-draft').checked = t.status === 'draft'; setPriority(t.priority || 'medium'); setCategory(t.category || 'work'); }
+        if (t) { document.getElementById('f-title').value = t.title || ''; document.getElementById('f-date').value = t.dueDate || ''; document.getElementById('f-time').value = t.dueTime || ''; document.getElementById('f-repeat').value = t.repeat || 'none'; document.getElementById('f-draft').checked = t.status === 'draft'; setPriority(t.priority || 'medium'); setCategory(t.category || 'work'); }
       }
       document.getElementById('edit-overlay').classList.add('show');
       document.getElementById('edit-sheet').classList.add('open');
@@ -2050,13 +2080,14 @@
       const isDraft = document.getElementById('f-draft').checked;
       const dueDate = document.getElementById('f-date').value;
       const dueTime = document.getElementById('f-time').value;
+      const repeat = document.getElementById('f-repeat').value;
       if (editingId) {
         const t = tasks.find(t => t.id === editingId);
-        if (t) { t.title = title; t.dueDate = dueDate; t.dueTime = dueTime; t.priority = curPriority; t.category = curCategory; t.status = isDraft ? 'draft' : (t.status === 'draft' ? 'upcoming' : t.status); }
+        if (t) { t.title = title; t.dueDate = dueDate; t.dueTime = dueTime; t.repeat = repeat; t.priority = curPriority; t.category = curCategory; t.status = isDraft ? 'draft' : (t.status === 'draft' ? 'upcoming' : t.status); schedNotif(t); }
       } else {
-        const t = { id: uid(), title, dueDate, dueTime, priority: curPriority, category: curCategory, status: isDraft ? 'draft' : 'upcoming', createdAt: Date.now() };
+        const t = { id: uid(), title, dueDate, dueTime, repeat, priority: curPriority, category: curCategory, status: isDraft ? 'draft' : 'upcoming', createdAt: Date.now() };
         tasks.push(t);
-        if (dueDate && dueTime && settings.notif) schedNotif(t);
+        schedNotif(t);
       }
       save(); closeSheet(); renderView(currentView);
     }
@@ -2079,8 +2110,9 @@
     <div class="detail-hero">
       <div class="detail-title">${esc(task.title)}</div>
       <div class="detail-meta">
+        ${task.repeat && task.repeat !== 'none' ? `<span class="badge" style="background:var(--surface2);color:var(--text2)">🔁 ${task.repeat}</span>` : ''}
         <span class="badge p-${task.priority || 'medium'}">${task.priority || 'medium'}</span>
-        <span class="badge c-${task.category || 'work'}">${task.category || 'work'}</span>
+        <span class="badge c-${task.category || 'work'}" onclick="closeDetail(); filterCategory('${task.category || 'work'}')">${task.category || 'work'}</span>
         <span class="badge" style="background:var(--surface2);color:var(--text2)">${task.status}</span>
       </div>
     </div>
@@ -2194,12 +2226,16 @@
       if (!settings.notif || Notification.permission !== 'granted' || !task.dueDate || !task.dueTime) return;
       const delay = new Date(task.dueDate + 'T' + task.dueTime) - Date.now();
       if (delay > 0) {
-        setTimeout(() => {
-          sendNotification('Task Due Now', task.title);
+        if (task.notifId) clearTimeout(task.notifId);
+        task.notifId = setTimeout(() => {
+          if (tasks.find(t => t.id === task.id)?.status === 'upcoming') {
+            sendNotification('Task Due Now', task.title);
+          }
         }, delay);
       } else if (delay > -10000) {
-        // Trigger immediately if it just became due (within 10 seconds)
-        sendNotification('Task Due Now', task.title);
+        if (tasks.find(t => t.id === task.id)?.status === 'upcoming') {
+          sendNotification('Task Due Now', task.title);
+        }
       }
     }
     function scheduleDailySummary() {
@@ -2274,7 +2310,7 @@
         `Parse this task description into structured JSON. Today is ${todayStr()}.
 Input: "${text}"
 Return ONLY valid JSON, no markdown, no extra text:
-{"title":"...","dueDate":"YYYY-MM-DD or empty string","dueTime":"HH:MM or empty string","priority":"low|medium|high","category":"work|personal|health|finance"}
+{"title":"...","dueDate":"YYYY-MM-DD or empty string","dueTime":"HH:MM or empty string","priority":"low|medium|high","category":"work|personal|health|finance","repeat":"none|daily|weekly|monthly"}
 Resolve relative dates like "next Monday", "tomorrow", "in 3 days" to absolute YYYY-MM-DD dates.`,
         'Parse natural language task descriptions into JSON. Return only valid JSON, nothing else.'
       );
@@ -2286,6 +2322,7 @@ Resolve relative dates like "next Monday", "tomorrow", "in 3 days" to absolute Y
         if (p.dueTime) document.getElementById('f-time').value = p.dueTime;
         if (p.priority) setPriority(p.priority);
         if (p.category) setCategory(p.category);
+        if (p.repeat) document.getElementById('f-repeat').value = p.repeat;
         document.getElementById('ai-text').value = '';
         document.getElementById('ai-sug-box').innerHTML = '<div class="ai-sug" style="background:var(--green-soft);color:var(--green)">✓ Fields filled from AI</div>';
         setTimeout(() => { document.getElementById('ai-sug-box').innerHTML = ''; }, 2000);
@@ -2381,11 +2418,28 @@ Return ONLY a JSON array of strings: ["step 1","step 2",...]  No markdown, no ot
       }, 120);
     };
 
+    function filterCategory(c) {
+      switchView('all');
+      document.getElementById('topbar-title').textContent = c.charAt(0).toUpperCase() + c.slice(1) + ' Tasks';
+      setTimeout(() => {
+        const results = tasks.filter(t => t.category === c && t.status !== 'deleted' && t.status !== 'completed');
+        const el = document.getElementById('all-content');
+        let h = `<div style="padding:12px 14px;font-size:12px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.6px">${c} Tasks · ${results.length}</div>`;
+        if (results.length) { h += '<div style="padding:0 14px">'; results.forEach(t => { h += renderCard(t); }); h += '</div><div class="pb-fab"></div>'; }
+        else h += `<div class="empty"><div class="empty-icon">📂</div><div class="empty-title">All caught up</div><div class="empty-sub">No pending ${c} tasks.</div></div>`;
+        el.innerHTML = h;
+        if (results.length) attachCards(el);
+      }, 120);
+    }
+
     // ══════════════════════════════════════════
     // INIT
     // ══════════════════════════════════════════
     function init() {
       load(); purge(); updateBadges();
+      if (settings.notif && Notification.permission === 'granted') {
+        tasks.forEach(t => { if (t.status === 'upcoming') schedNotif(t); });
+      }
       if (!tasks.length) {
         const today = todayStr();
         const tm = new Date(); tm.setDate(tm.getDate() + 1); const tmStr = `${tm.getFullYear()}-${p2(tm.getMonth() + 1)}-${p2(tm.getDate())}`;
