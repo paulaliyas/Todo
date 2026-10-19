@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Today's List</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+[hidden] { display: none !important; }
+body { margin: 0; }
+/* Layout: one frosted-glass column of active tasks over three soft colour blobs; slim glass rail on the left, glass drawer for Completed and Trash. Single light theme by design. */
+:root {
+  color-scheme: light;
+  --bg: #eef1f6;
+  --ink: #1d2433;
+  --ink-2: #3a4558;
+  --muted: #6b7588;
+  --accent: #0f766e;
+  --accent-ink: #ffffff;
+  --mint: #9ee3d6;
+  --peri: #b9c8ff;
+  --peach: #ffd9b0;
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-strong: rgba(255, 255, 255, 0.72);
+  --glass-edge: rgba(255, 255, 255, 0.9);
+  --divider: rgba(29, 36, 51, 0.08);
+  --shadow: 0 12px 32px rgba(40, 60, 100, 0.10);
+  --hi: #d9485f;
+  --mid: #c98a12;
+  --lo: #2f9e6e;
+  --done: #8a93a6;
+  --scrim: rgba(29, 36, 51, 0.18);
+  --font: "Manrope", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 56px;
+  min-height: 100vh; position: relative;
+}
+
+/* Background blobs */
+.blobs { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.blobs i { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.85; }
+.blobs i:nth-child(1) { width: 46vmax; height: 46vmax; background: var(--mint); top: -14vmax; left: -10vmax; }
+.blobs i:nth-child(2) { width: 42vmax; height: 42vmax; background: var(--peri); top: 18vmax; right: -14vmax; }
+.blobs i:nth-child(3) { width: 36vmax; height: 36vmax; background: var(--peach); bottom: -16vmax; left: 20vmax; }
+
+/* Glass surface */
+.sheet, .rail, .drawer, .dialog, .toast, .chip, input[type=text], input[type=date], .textbtn, .task-opts {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-edge);
+}
+.sheet, .rail, .drawer, .dialog, .toast { box-shadow: var(--shadow); }
+
+.wrap { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; display: grid; gap: 20px; }
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+h1 { font-weight: 800; font-size: clamp(2.1rem, 6vw, 2.9rem); line-height: 1; margin: 0; letter-spacing: -0.03em; text-wrap: balance; }
+h2 { font-weight: 800; font-size: 1.25rem; margin: 0; letter-spacing: -0.01em; }
+.date { font-size: 12px; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 10px; }
+.progress { text-align: right; font-size: 12px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; text-transform: uppercase; letter-spacing: 0.08em; }
+.progress strong { display: block; font-size: 1.75rem; color: var(--ink); font-weight: 800; letter-spacing: -0.02em; text-transform: none; }
+.bar { height: 6px; background: rgba(255, 255, 255, 0.6); border: 1px solid var(--glass-edge); border-radius: 999px; overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--accent); width: 0; border-radius: 999px; transition: width .3s ease; }
+
+input, select, button { font: inherit; color: inherit; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input[type=text], input[type=date] { border-radius: 14px; padding: 11px 14px; color: var(--ink); }
+input::placeholder { color: var(--muted); }
+.btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 14px; padding: 11px 20px; font-weight: 700; cursor: pointer; box-shadow: 0 8px 20px rgba(15, 118, 110, 0.25); }
+.btn:hover { filter: brightness(1.08); }
+
+.sheet { border-radius: 22px; overflow: hidden; }
+form.add { display: grid; gap: 14px; padding: 16px; border-bottom: 1px solid var(--divider); }
+.add-row { display: flex; gap: 8px; }
+.add-row input[type=text] { flex: 1; min-width: 0; background: var(--glass-strong); }
+.opts { display: flex; gap: 12px 22px; flex-wrap: wrap; align-items: center; }
+.opt-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.opt-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-2); margin-right: 2px; }
+.chip { border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; transition: background .15s ease; }
+.chip:hover { background: var(--glass-strong); color: var(--ink); }
+.chip[aria-checked=true] { background: rgba(15, 118, 110, 0.12); border-color: rgba(15, 118, 110, 0.45); color: var(--accent); }
+.chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.chip.high .dot { color: var(--hi); } .chip.normal .dot { color: var(--mid); } .chip.low .dot { color: var(--lo); }
+.chip.date-chip { position: relative; overflow: hidden; }
+.chip.date-chip input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; border: 0; padding: 0; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+ul { list-style: none; margin: 0; padding: 0; }
+li.task { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px 12px; padding: 14px 16px; border-bottom: 1px solid var(--divider); }
+li.task:last-child { border-bottom: 0; }
+.check { appearance: none; width: 22px; height: 22px; border: 2px solid rgba(58, 69, 88, 0.45); background: rgba(255, 255, 255, 0.6); border-radius: 8px; cursor: pointer; display: grid; place-items: center; margin: 0; flex: none; }
+.check:hover { border-color: var(--accent); }
+.check:checked { background: var(--accent); border-color: var(--accent); }
+.check:checked::after { content: ""; width: 5px; height: 10px; border: solid var(--accent-ink); border-width: 0 2px 2px 0; transform: translateY(-1px) rotate(45deg); }
+.check.small { width: 17px; height: 17px; border-radius: 6px; border-width: 1.5px; }
+.check.small:checked::after { width: 4px; height: 8px; }
+.body { min-width: 0; display: grid; gap: 3px; }
+.text { overflow-wrap: anywhere; font-weight: 600; }
+#list .text { cursor: text; }
+.done .text { color: var(--done); text-decoration: line-through; font-weight: 500; }
+.meta { display: flex; gap: 12px; font-size: 11px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.07em; flex-wrap: wrap; align-items: center; }
+.pri::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: currentColor; }
+.pri.high { color: var(--hi); } .pri.normal { color: var(--mid); } .pri.low { color: var(--lo); }
+.overdue { color: var(--hi); }
+.edit { width: 100%; }
+.icon-btn { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 7px; border-radius: 10px; line-height: 0; }
+.icon-btn:hover { color: var(--ink); background: var(--glass-strong); }
+.icon-btn.danger:hover { color: var(--hi); }
+.actions { display: flex; gap: 4px; align-items: center; }
+.textbtn { border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--ink); white-space: nowrap; }
+.textbtn:hover { background: var(--glass-strong); }
+.textbtn.danger { color: var(--hi); }
+.textbtn.armed { background: var(--hi); border-color: var(--hi); color: #fff; }
+
+/* Subtasks */
+.subs { grid-column: 2 / -1; display: grid; gap: 2px; padding: 2px 0 2px 14px; border-left: 2px solid var(--divider); }
+.sub { display: flex; align-items: center; gap: 10px; min-height: 32px; }
+.subtext { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; color: var(--ink-2); cursor: text; }
+.sub.done .subtext { color: var(--done); text-decoration: line-through; }
+.sub .icon-btn { padding: 5px; }
+.sub-add { display: flex; align-items: center; gap: 10px; min-height: 34px; }
+.sub-add .plus { width: 17px; text-align: center; color: var(--muted); font-size: 16px; line-height: 1; }
+.sub-add input { flex: 1; min-width: 0; background: transparent !important; border: 0 !important; border-bottom: 1px dashed rgba(58, 69, 88, 0.25) !important; border-radius: 0 !important; padding: 5px 0 !important; font-size: 14px; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.sub-add input:focus-visible { outline: none; border-bottom-color: var(--accent) !important; }
+.subtoggle { background: none; border: 0; padding: 0; font: inherit; color: var(--ink-2); cursor: pointer; text-transform: inherit; letter-spacing: inherit; display: inline-flex; align-items: center; gap: 4px; }
+.subtoggle:hover { color: var(--accent); }
+.subtoggle.complete { color: var(--accent); }
+.subtoggle svg { transition: transform .15s ease; }
+.subtoggle[aria-expanded=true] svg { transform: rotate(90deg); }
+.metabtn { background: none; border: 0; padding: 0; font: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; border-bottom: 1px dotted transparent; }
+.metabtn:not(.pri) { color: var(--ink-2); }
+.metabtn.overdue { color: var(--hi); }
+.metabtn.faint { opacity: 0.7; }
+.metabtn:hover { border-bottom-color: currentColor; }
+.metabtn:hover:not(.pri):not(.overdue) { color: var(--accent); }
+.task-opts { grid-column: 2 / -1; display: flex; gap: 10px 18px; flex-wrap: wrap; align-items: center; padding: 12px 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.45); }
+.mini { display: flex; align-items: center; gap: 8px; margin-top: 5px; max-width: 280px; }
+.mini .track { flex: 1; height: 6px; background: rgba(58, 69, 88, 0.1); border-radius: 999px; overflow: hidden; }
+.mini .fill { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width .3s ease; }
+.mini .pct { font-size: 11px; font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; min-width: 3.2em; text-align: right; }
+
+/* Completed section */
+.done-sec { border-top: 1px solid var(--divider); }
+.done-head { width: 100%; display: flex; align-items: center; gap: 8px; padding: 13px 16px; background: rgba(255, 255, 255, 0.25); border: 0; cursor: pointer; font-size: 13px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.08em; text-align: left; }
+.done-head:hover { background: rgba(255, 255, 255, 0.5); color: var(--ink); }
+.done-head svg { transition: transform .15s ease; }
+.done-head[aria-expanded=true] svg { transform: rotate(90deg); }
+.done-head .badge { text-transform: none; letter-spacing: 0; }
+#doneList { border-top: 1px solid var(--divider); background: rgba(255, 255, 255, 0.18); }
+
+.empty { padding: 40px 16px; text-align: center; color: var(--ink-2); }
+.hint { font-size: 12px; color: var(--ink-2); text-align: center; margin: 0; }
+
+/* Side rail */
+.rail {
+  position: fixed; left: calc(14px + env(safe-area-inset-left, 0px)); top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 4px; padding: 6px; z-index: 15; border-radius: 22px;
+}
+.rail button { position: relative; width: 42px; height: 42px; border: 0; background: none; border-radius: 999px; color: var(--ink-2); display: grid; place-items: center; cursor: pointer; }
+.rail button:hover, .rail button[aria-expanded=true] { background: rgba(255, 255, 255, 0.85); color: var(--accent); }
+.rail .count { position: absolute; top: 0; right: -1px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 700; line-height: 17px; text-align: center; font-variant-numeric: tabular-nums; }
+.rail .count.zero { display: none; }
+.rail .sep { height: 1px; background: var(--divider); margin: 2px 8px; }
+.rail input[type=file] { display: none; }
+@media (max-width: 780px) {
+  .rail { top: auto; transform: none; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); flex-direction: row; }
+  .rail .sep { width: 1px; height: auto; margin: 8px 2px; }
+  body { padding-bottom: 100px; }
+  .toast { bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+
+/* Drawer */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 20; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+.drawer {
+  position: fixed; top: 0; left: 0; bottom: 0; width: min(420px, 100%); z-index: 21;
+  background: rgba(255, 255, 255, 0.7); border-left: 0; border-radius: 0 22px 22px 0;
+  display: flex; flex-direction: column;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  transform: translateX(-105%); transition: transform .25s ease; visibility: hidden;
+}
+.drawer.open { transform: none; visibility: visible; }
+.drawer-head { display: flex; justify-content: space-between; align-items: center; padding: 18px 18px 10px; }
+.tabs { display: flex; gap: 6px; padding: 4px 18px 12px; border-bottom: 1px solid var(--divider); }
+.tabs button { background: rgba(255, 255, 255, 0.5); border: 1px solid var(--glass-edge); border-radius: 999px; padding: 7px 14px; cursor: pointer; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; font-weight: 600; font-size: 14px; }
+.tabs button:hover { background: rgba(255, 255, 255, 0.85); }
+.tabs button[aria-selected=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.badge { font-size: 11px; font-weight: 700; background: rgba(29, 36, 51, 0.08); border-radius: 999px; padding: 0 7px; font-variant-numeric: tabular-nums; }
+.tabs button[aria-selected=true] .badge { background: rgba(255, 255, 255, 0.25); }
+.panel-tools { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; font-size: 13px; color: var(--ink-2); gap: 10px; flex-wrap: wrap; }
+.drawer-body { overflow-y: auto; flex: 1; }
+.drawer li.task { padding: 13px 18px; }
+.drawer .text { cursor: default; }
+.trashed .text { color: var(--ink-2); font-weight: 500; }
+
+/* Import dialog */
+.dialog { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 25; width: min(420px, calc(100% - 32px)); background: rgba(255, 255, 255, 0.78); border-radius: 22px; padding: 22px; display: grid; gap: 14px; }
+.dialog p { margin: 0; color: var(--ink-2); }
+.dialog .row { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
+.dialog .err { color: var(--hi); }
+
+.toast { position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: rgba(29, 36, 51, 0.82); border-color: rgba(255, 255, 255, 0.25); color: #fff; padding: 11px 16px; border-radius: 16px; display: flex; gap: 14px; align-items: center; font-size: 14px; font-weight: 500; z-index: 30; max-width: calc(100% - 32px); }
+.toast button { background: none; border: 0; color: var(--mint); font-weight: 700; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="blobs" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<nav class="rail" aria-label="Trash, export and import">
+  <button type="button" id="openTrash" aria-controls="drawer" aria-expanded="false" aria-label="Trash" title="Trash">
+    <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4"/></svg>
+    <span class="count" id="trashBadge">0</span>
+  </button>
+  <span class="sep" aria-hidden="true"></span>
+  <button type="button" id="exportBtn" aria-label="Export CSV" title="Export CSV">
+    <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v7M5 6.5l3 3 3-3M3 11v2.5h10V11"/></svg>
+  </button>
+  <button type="button" id="importBtn" aria-label="Import CSV" title="Import CSV">
+    <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9.5v-7M5 5.5l3-3 3 3M3 11v2.5h10V11"/></svg>
+  </button>
+  <input type="file" id="importFile" accept=".csv,text/csv">
+</nav>
+
+<div class="scrim" id="dlgScrim" hidden></div>
+<div class="dialog" id="importDlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle" hidden>
+  <h2 id="dlgTitle">Import CSV</h2>
+  <p id="dlgMsg"></p>
+  <div class="row" id="dlgActions">
+    <button type="button" class="textbtn" id="dlgCancel">Cancel</button>
+    <button type="button" class="textbtn danger" id="dlgReplace">Replace my list</button>
+    <button type="button" class="btn" id="dlgMerge">Add to my list</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Today's List</h1>
+      <div class="date" id="today"></div>
+    </div>
+    <div class="progress"><strong id="count">0/0</strong>done</div>
+  </header>
+  <div class="bar"><span id="barFill"></span></div>
+
+  <section class="sheet">
+    <form class="add" id="addForm">
+      <div class="add-row">
+        <input type="text" id="newText" placeholder="Add a task and press Enter" autocomplete="off" aria-label="New task">
+        <button class="btn" type="submit">Add</button>
+      </div>
+      <div class="opts">
+        <div class="opt-group" role="radiogroup" aria-label="Priority" id="priChips">
+          <span class="opt-label">Priority</span>
+          <button type="button" class="chip high" role="radio" data-v="high" aria-checked="false"><span class="dot"></span>High</button>
+          <button type="button" class="chip normal" role="radio" data-v="normal" aria-checked="true"><span class="dot"></span>Normal</button>
+          <button type="button" class="chip low" role="radio" data-v="low" aria-checked="false"><span class="dot"></span>Low</button>
+        </div>
+        <div class="opt-group" role="radiogroup" aria-label="Due" id="dueChips">
+          <span class="opt-label">Due</span>
+          <button type="button" class="chip" role="radio" data-v="none" aria-checked="true">None</button>
+          <button type="button" class="chip" role="radio" data-v="today" aria-checked="false">Today</button>
+          <button type="button" class="chip" role="radio" data-v="tomorrow" aria-checked="false">Tomorrow</button>
+          <span class="chip date-chip" role="radio" data-v="pick" aria-checked="false" id="pickChip"><span id="pickLabel">Pick date</span><input type="date" id="newDue" aria-label="Pick a due date"></span>
+        </div>
+      </div>
+    </form>
+    <ul id="list"></ul>
+    <div class="empty" id="empty" hidden></div>
+    <div class="done-sec" id="doneSec" hidden>
+      <button type="button" class="done-head" id="doneToggle" aria-expanded="false" aria-controls="doneList">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 2l3 3-3 3"/></svg>
+        Completed <span class="badge" id="doneCount">0</span>
+      </button>
+      <ul id="doneList" hidden></ul>
+    </div>
+  </section>
+  <p class="hint">Tick a task to move it to Completed at the bottom of the list. Deleted tasks go to Trash in the side rail, where you can restore them. Double-click a task to edit it.</p>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" aria-label="Trash" aria-hidden="true">
+  <div class="drawer-head">
+    <h2 id="drawerTitle">Trash</h2>
+    <button type="button" class="icon-btn" id="closeDrawer" aria-label="Close Trash">
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    </button>
+  </div>
+  <div class="panel-tools" id="panelTools"></div>
+  <div class="drawer-body">
+    <ul id="sideList"></ul>
+    <div class="empty" id="sideEmpty" hidden></div>
+  </div>
+</aside>
+
+<div class="toast" id="toast" hidden><span id="toastMsg"></span><button type="button" id="undo">Undo</button></div>
+
+<script>
+(function () {
+  const KEY = "todo.tasks.v1";
+  const $ = id => document.getElementById(id);
+  const now = new Date();
+  const todayISO = new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const PRI_ORDER = { high: 0, normal: 1, low: 2 };
+  let tab = "trash", doneOpen = false, undoState = null, toastTimer = null, armed = null, focusSub = null, optsOpen = null;
+  const openIds = new Set(["s0"]);
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const subCount = t => ({ done: t.subs.filter(s => s.done).length, total: t.subs.length });
+
+  const samples = [
+    { text: "Example: review pull request for the login page", pri: "high", due: todayISO,
+      subs: [ { id: "ss1", text: "Check form validation", done: true }, { id: "ss2", text: "Run the unit tests", done: false }, { id: "ss3", text: "Leave review comments", done: false } ] },
+    { text: "Example: reply to team about Thursday's release", pri: "normal", due: "" },
+    { text: "Example: buy groceries on the way home", pri: "low", due: "" },
+    { text: "Example: morning stand-up", pri: "normal", due: "", done: true, doneAt: Date.now() - 3600e3 },
+    { text: "Example: old reminder you deleted", pri: "low", due: "", deletedAt: Date.now() - 86400e3 }
+  ].map((t, i) => ({ id: "s" + i, created: Date.now() - i, done: false, doneAt: null, deletedAt: null, subs: [], ...t }));
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) return JSON.parse(raw).map(t => ({ doneAt: t.done ? (t.doneAt || t.created) : null, deletedAt: null, subs: [], ...t }));
+    } catch (e) {}
+    return samples;
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch (e) {} }
+  let tasks = load();
+
+  const active = () => tasks.filter(t => !t.deletedAt && !t.done);
+  const completed = () => tasks.filter(t => !t.deletedAt && t.done);
+  const trashed = () => tasks.filter(t => t.deletedAt);
+  const byId = id => tasks.find(t => t.id === id);
+  const snapshot = () => tasks.map(t => ({ ...t }));
+
+  $("today").textContent = now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+
+  function fmtDue(d) {
+    if (!d) return "";
+    if (d === todayISO) return "Due today";
+    return "Due " + new Date(d + "T00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  }
+  function fmtWhen(ts) {
+    const d = new Date(ts);
+    const same = d.toDateString() === new Date().toDateString();
+    return same ? "Today " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+                : d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  }
+  const ICON_TRASH = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4"/></svg>`;
+
+  function metaHTML(t, extra, editable) {
+    const overdue = t.due && !t.done && !t.deletedAt && t.due < todayISO;
+    const dueTxt = t.due ? `${overdue ? "Overdue · " : ""}${fmtDue(t.due)}` : "";
+    if (editable) {
+      const open = optsOpen === t.id;
+      return `<div class="meta">
+        <button type="button" class="metabtn pri ${t.pri}" data-act="opts" aria-expanded="${open}" title="Change priority">${t.pri}</button>
+        <button type="button" class="metabtn ${overdue ? "overdue" : ""} ${t.due ? "" : "faint"}" data-act="opts" aria-expanded="${open}" title="Change due date">${t.due ? dueTxt : "+ Due date"}</button>
+        ${extra || ""}
+      </div>`;
+    }
+    return `<div class="meta">
+      <span class="pri ${t.pri}">${t.pri}</span>
+      ${t.due ? `<span class="${overdue ? "overdue" : ""}">${dueTxt}</span>` : ""}
+      ${extra || ""}
+    </div>`;
+  }
+
+  function optsHTML(t) {
+    const dueKey = !t.due ? "none" : t.due === todayISO ? "today" : t.due === tomorrowISO ? "tomorrow" : "pick";
+    const chip = (act, v, label, sel, cls) => `<button type="button" class="chip ${cls || ""}" role="radio" data-act="${act}" data-v="${v}" aria-checked="${sel}">${label}</button>`;
+    return `<div class="task-opts">
+      <div class="opt-group" role="radiogroup" aria-label="Priority">
+        <span class="opt-label">Priority</span>
+        ${["high", "normal", "low"].map(p => chip("setpri", p, `<span class="dot"></span>${p[0].toUpperCase() + p.slice(1)}`, t.pri === p, p)).join("")}
+      </div>
+      <div class="opt-group" role="radiogroup" aria-label="Due">
+        <span class="opt-label">Due</span>
+        ${chip("setdue", "none", "None", dueKey === "none")}
+        ${chip("setdue", "today", "Today", dueKey === "today")}
+        ${chip("setdue", "tomorrow", "Tomorrow", dueKey === "tomorrow")}
+        <span class="chip date-chip" role="radio" aria-checked="${dueKey === "pick"}">${dueKey === "pick" ? new Date(t.due + "T00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "Pick date"}<input type="date" class="taskdate" id="due-${t.id}" value="${dueKey === "pick" ? t.due : ""}" aria-label="Pick a due date"></span>
+      </div>
+      <button type="button" class="textbtn" data-act="closeopts">Done</button>
+    </div>`;
+  }
+
+  function renderMain() {
+    const list = $("list");
+    list.innerHTML = "";
+    const shown = active().sort((a, b) =>
+      (PRI_ORDER[a.pri] - PRI_ORDER[b.pri]) || (a.due || "9999").localeCompare(b.due || "9999") || (b.created - a.created));
+    for (const t of shown) {
+      const li = document.createElement("li");
+      li.className = "task"; li.dataset.id = t.id;
+      const open = openIds.has(t.id);
+      const c = subCount(t);
+      const toggle = `<button type="button" class="subtoggle ${c.total && c.done === c.total ? "complete" : ""}" data-act="toggle" aria-expanded="${open}">
+          <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 2l3 3-3 3"/></svg>
+          ${c.total ? `Subtasks ${c.done}/${c.total}` : "Add subtask"}</button>`;
+      const pct = c.total ? Math.round(c.done / c.total * 100) : 0;
+      const mini = c.total ? `<div class="mini ${pct === 100 ? "complete" : ""}" role="progressbar" aria-label="Subtask progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+          <span class="track"><span class="fill" style="width:${pct}%"></span></span><span class="pct">${pct}%</span></div>` : "";
+      li.innerHTML = `
+        <input type="checkbox" class="check" id="c-${t.id}" aria-label="Mark done">
+        <div class="body"><span class="text"></span>${metaHTML(t, toggle, true)}${mini}</div>
+        <button type="button" class="icon-btn danger" data-act="trash" aria-label="Move to trash">${ICON_TRASH}</button>
+        ${optsOpen === t.id ? optsHTML(t) : ""}`;
+      li.querySelector(".text").textContent = t.text;
+      if (open) {
+        const subs = document.createElement("div");
+        subs.className = "subs";
+        for (const s of t.subs) {
+          const row = document.createElement("div");
+          row.className = "sub" + (s.done ? " done" : ""); row.dataset.sid = s.id;
+          row.innerHTML = `
+            <input type="checkbox" class="check small subcheck" id="sc-${t.id}-${s.id}" ${s.done ? "checked" : ""} aria-label="Mark subtask done">
+            <span class="subtext"></span>
+            <button type="button" class="icon-btn danger" data-act="subdel" aria-label="Remove subtask">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+            </button>`;
+          row.querySelector(".subtext").textContent = s.text;
+          subs.appendChild(row);
+        }
+        const add = document.createElement("form");
+        add.className = "sub-add";
+        add.innerHTML = `<span class="plus" aria-hidden="true">+</span><input type="text" id="sub-in-${t.id}" placeholder="Add a subtask and press Enter" autocomplete="off" aria-label="New subtask">`;
+        subs.appendChild(add);
+        li.appendChild(subs);
+      }
+      list.appendChild(li);
+    }
+    if (focusSub) { const el = document.getElementById("sub-in-" + focusSub); if (el) el.focus(); focusSub = null; }
+    const empty = $("empty");
+    empty.hidden = shown.length > 0;
+    empty.textContent = completed().length ? "All done. Your finished tasks are under Completed below." : "No tasks yet. Add your first one above.";
+  }
+
+  function renderSide() {
+    const list = $("sideList");
+    list.innerHTML = "";
+    const isDone = tab === "done";
+    const items = (isDone ? completed().sort((a, b) => b.doneAt - a.doneAt)
+                          : trashed().sort((a, b) => b.deletedAt - a.deletedAt));
+    for (const t of items) {
+      const li = document.createElement("li");
+      li.className = "task " + (isDone ? "done" : "trashed"); li.dataset.id = t.id;
+      if (isDone) {
+        li.innerHTML = `
+          <input type="checkbox" class="check" id="sc-${t.id}" checked aria-label="Move back to active">
+          <div class="body"><span class="text"></span>${metaHTML(t, `${t.subs.length ? `<span>Subtasks ${subCount(t).done}/${t.subs.length}</span>` : ""}<span>Done ${fmtWhen(t.doneAt)}</span>`)}</div>
+          <div class="actions">
+            <button type="button" class="textbtn" data-act="reopen">Reopen</button>
+            <button type="button" class="icon-btn danger" data-act="trash" aria-label="Move to trash">${ICON_TRASH}</button>
+          </div>`;
+      } else {
+        const isArmed = armed === t.id;
+        li.style.gridTemplateColumns = "1fr auto";
+        li.innerHTML = `
+          <div class="body"><span class="text"></span>${metaHTML(t, `<span>Deleted ${fmtWhen(t.deletedAt)}</span>`)}</div>
+          <div class="actions">
+            <button type="button" class="textbtn" data-act="restore">Restore</button>
+            <button type="button" class="textbtn danger ${isArmed ? "armed" : ""}" data-act="purge">${isArmed ? "Confirm" : "Delete"}</button>
+          </div>`;
+      }
+      li.querySelector(".text").textContent = t.text;
+      list.appendChild(li);
+    }
+
+    const tools = $("panelTools");
+    if (isDone) {
+      tools.innerHTML = `<span>Reopen a task to put it back on your list.</span>`;
+    } else {
+      const n = items.length;
+      tools.innerHTML = `<span>Deleting here removes a task for good.</span>` +
+        (n ? `<button type="button" class="textbtn danger ${armed === "__all" ? "armed" : ""}" data-act="empty">${armed === "__all" ? `Confirm: delete ${n}` : "Empty trash"}</button>` : "");
+    }
+    const se = $("sideEmpty");
+    se.hidden = items.length > 0;
+    se.textContent = isDone ? "Nothing completed yet. Tick a task to see it here." : "Trash is empty.";
+
+  }
+
+  function render() {
+    const nActive = active().length, nDone = completed().length, nTrash = trashed().length;
+    const total = nActive + nDone;
+    $("count").textContent = `${nDone}/${total}`;
+    $("barFill").style.width = total ? (nDone / total * 100) + "%" : "0";
+    $("trashBadge").textContent = nTrash;
+    $("trashBadge").classList.toggle("zero", !nTrash);
+    $("openTrash").setAttribute("aria-expanded", $("drawer").classList.contains("open"));
+    renderMain(); renderDone(); renderSide();
+  }
+
+  function renderDone() {
+    const items = completed().sort((a, b) => b.doneAt - a.doneAt);
+    $("doneSec").hidden = !items.length;
+    $("doneCount").textContent = items.length;
+    $("doneToggle").setAttribute("aria-expanded", doneOpen);
+    const list = $("doneList");
+    list.hidden = !doneOpen;
+    list.innerHTML = "";
+    if (!doneOpen) return;
+    for (const t of items) {
+      const li = document.createElement("li");
+      li.className = "task done"; li.dataset.id = t.id;
+      const c = subCount(t);
+      li.innerHTML = `
+        <input type="checkbox" class="check" id="dc-${t.id}" checked aria-label="Reopen task">
+        <div class="body"><span class="text"></span>${metaHTML(t, `${c.total ? `<span>Subtasks ${c.done}/${c.total}</span>` : ""}<span>Done ${fmtWhen(t.doneAt)}</span>`)}</div>
+        <div class="actions">
+          <button type="button" class="textbtn" data-act="reopen">Reopen</button>
+          <button type="button" class="icon-btn danger" data-act="trash" aria-label="Move to trash">${ICON_TRASH}</button>
+        </div>`;
+      li.querySelector(".text").textContent = t.text;
+      list.appendChild(li);
+    }
+  }
+
+  function showToast(msg, before) {
+    undoState = before;
+    $("undo").hidden = !before;
+    $("toastMsg").textContent = msg;
+    $("toast").hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { $("toast").hidden = true; undoState = null; }, 5000);
+  }
+  const short = s => s.length > 28 ? s.slice(0, 28) + "…" : s;
+
+  function moveToTrash(id) {
+    const before = snapshot();
+    const t = byId(id); t.deletedAt = Date.now();
+    save(); render();
+    showToast(`Moved "${short(t.text)}" to Trash`, before);
+  }
+  function setDone(id, done) {
+    const before = snapshot();
+    const t = byId(id); t.done = done; t.doneAt = done ? Date.now() : null;
+    save(); render();
+    showToast(done ? `Moved "${short(t.text)}" to Completed` : `"${short(t.text)}" is back on your list`, before);
+  }
+
+  // Drawer
+  function openDrawer(which) {
+    tab = which; armed = null;
+    $("drawer").classList.add("open"); $("drawer").setAttribute("aria-hidden", "false");
+    $("scrim").hidden = false; render(); $("closeDrawer").focus();
+  }
+  function closeDrawer() {
+    $("drawer").classList.remove("open"); $("drawer").setAttribute("aria-hidden", "true");
+    $("scrim").hidden = true; armed = null; render();
+  }
+  $("openTrash").addEventListener("click", () => openDrawer("trash"));
+  $("closeDrawer").addEventListener("click", closeDrawer);
+  $("scrim").addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && $("drawer").classList.contains("open") && !e.target.classList.contains("edit")) closeDrawer(); });
+
+  // Completed section in the main list
+  $("doneToggle").addEventListener("click", () => {
+    doneOpen = !doneOpen;
+    try { localStorage.setItem("todo.doneOpen", doneOpen ? "1" : ""); } catch (e) {}
+    render();
+  });
+  $("doneList").addEventListener("change", e => {
+    if (e.target.classList.contains("check")) setDone(e.target.closest("li").dataset.id, false);
+  });
+  $("doneList").addEventListener("click", e => {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const id = b.closest("li").dataset.id;
+    if (b.dataset.act === "reopen") setDone(id, false);
+    else if (b.dataset.act === "trash") moveToTrash(id);
+  });
+
+  // Option chips
+  const tmr = new Date(now); tmr.setDate(tmr.getDate() + 1);
+  const tomorrowISO = new Date(tmr - tmr.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  let newPri = "normal", newDue = "";
+  function selectChip(group, v) {
+    group.querySelectorAll("[role=radio]").forEach(c => c.setAttribute("aria-checked", c.dataset.v === v));
+  }
+  $("priChips").addEventListener("click", e => {
+    const c = e.target.closest("[data-v]"); if (!c) return;
+    newPri = c.dataset.v; selectChip($("priChips"), newPri); $("newText").focus();
+  });
+  $("dueChips").addEventListener("click", e => {
+    const c = e.target.closest("button[data-v]"); if (!c) return;
+    const v = c.dataset.v;
+    newDue = v === "today" ? todayISO : v === "tomorrow" ? tomorrowISO : "";
+    $("newDue").value = ""; $("pickLabel").textContent = "Pick date";
+    selectChip($("dueChips"), v); $("newText").focus();
+  });
+  $("newDue").addEventListener("click", () => { try { $("newDue").showPicker(); } catch (e) {} });
+  $("newDue").addEventListener("change", () => {
+    const v = $("newDue").value;
+    if (!v) return;
+    newDue = v;
+    $("pickLabel").textContent = new Date(v + "T00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    selectChip($("dueChips"), "pick");
+  });
+  function resetOptions() {
+    newPri = "normal"; newDue = ""; $("newDue").value = ""; $("pickLabel").textContent = "Pick date";
+    selectChip($("priChips"), "normal"); selectChip($("dueChips"), "none");
+  }
+
+  // Add
+  $("addForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const text = $("newText").value.trim();
+    if (!text) { $("newText").focus(); return; }
+    tasks.push({ id: newId(), text, pri: newPri, due: newDue, done: false, doneAt: null, deletedAt: null, subs: [], created: Date.now() });
+    $("newText").value = ""; resetOptions();
+    save(); render(); $("newText").focus();
+  });
+
+  // Main list
+  $("list").addEventListener("change", e => {
+    const li = e.target.closest("li"); if (!li) return;
+    if (e.target.classList.contains("taskdate")) {
+      if (e.target.value) { byId(li.dataset.id).due = e.target.value; save(); render(); }
+      return;
+    }
+    if (e.target.classList.contains("subcheck")) {
+      const s = byId(li.dataset.id).subs.find(x => x.id === e.target.closest(".sub").dataset.sid);
+      s.done = e.target.checked; save(); render();
+    } else if (e.target.classList.contains("check")) setDone(li.dataset.id, true);
+  });
+  $("list").addEventListener("click", e => {
+    if (e.target.classList.contains("taskdate")) { try { e.target.showPicker(); } catch (err) {} return; }
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const t = byId(b.closest("li").dataset.id);
+    if (b.dataset.act === "trash") moveToTrash(t.id);
+    else if (b.dataset.act === "opts") { optsOpen = optsOpen === t.id ? null : t.id; render(); }
+    else if (b.dataset.act === "closeopts") { optsOpen = null; render(); }
+    else if (b.dataset.act === "setpri") { t.pri = b.dataset.v; save(); render(); }
+    else if (b.dataset.act === "setdue") {
+      const v = b.dataset.v;
+      t.due = v === "today" ? todayISO : v === "tomorrow" ? tomorrowISO : "";
+      save(); render();
+    }
+    else if (b.dataset.act === "toggle") {
+      if (openIds.has(t.id)) openIds.delete(t.id); else { openIds.add(t.id); focusSub = t.id; }
+      render();
+    } else if (b.dataset.act === "subdel") {
+      const before = snapshot();
+      const sid = b.closest(".sub").dataset.sid;
+      const s = t.subs.find(x => x.id === sid);
+      t.subs = t.subs.filter(x => x.id !== sid);
+      save(); render(); showToast(`Removed subtask "${short(s.text)}"`, before);
+    }
+  });
+  $("list").addEventListener("submit", e => {
+    e.preventDefault();
+    const t = byId(e.target.closest("li").dataset.id);
+    const input = e.target.querySelector("input");
+    const v = input.value.trim(); if (!v) return;
+    t.subs.push({ id: newId(), text: v, done: false });
+    focusSub = t.id; save(); render();
+  });
+  $("list").addEventListener("dblclick", e => {
+    const span = e.target.closest(".text, .subtext"); if (!span) return;
+    const t = byId(span.closest("li").dataset.id);
+    const isSub = span.classList.contains("subtext");
+    const target = isSub ? t.subs.find(x => x.id === span.closest(".sub").dataset.sid) : t;
+    const input = document.createElement("input");
+    input.type = "text"; input.className = "edit"; input.value = target.text; input.id = "edit-" + t.id + (isSub ? "-" + target.id : "");
+    span.replaceWith(input); input.focus(); input.select();
+    let finished = false;
+    const finish = commit => {
+      if (finished) return; finished = true;
+      const v = input.value.trim();
+      if (commit && v) { target.text = v; save(); }
+      render();
+    };
+    input.addEventListener("keydown", ev => { if (ev.key === "Enter") finish(true); if (ev.key === "Escape") finish(false); });
+    input.addEventListener("blur", () => finish(true));
+  });
+
+  // Sidebar
+  $("sideList").addEventListener("change", e => {
+    if (e.target.classList.contains("check")) setDone(e.target.closest("li").dataset.id, false);
+  });
+  $("drawer").addEventListener("click", e => {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const li = b.closest("li"); const id = li && li.dataset.id;
+    const act = b.dataset.act;
+    if (act === "trash") moveToTrash(id);
+    else if (act === "reopen") setDone(id, false);
+    else if (act === "restore") {
+      const before = snapshot(); const t = byId(id); t.deletedAt = null; armed = null;
+      save(); render(); showToast(`Restored "${short(t.text)}"`, before);
+    } else if (act === "purge") {
+      if (armed !== id) { armed = id; renderSide(); return; }
+      const before = snapshot(); const t = byId(id);
+      tasks = tasks.filter(x => x.id !== id); armed = null;
+      save(); render(); showToast(`Deleted "${short(t.text)}" for good`, before);
+    } else if (act === "empty") {
+      if (armed !== "__all") { armed = "__all"; renderSide(); return; }
+      const before = snapshot(); const n = trashed().length;
+      tasks = tasks.filter(x => !x.deletedAt); armed = null;
+      save(); render(); showToast(`Emptied Trash (${n})`, before);
+    }
+  });
+
+  // ---------- CSV export / import ----------
+  const COLS = ["type", "id", "parent_id", "text", "priority", "due", "status", "done_at", "deleted_at", "created_at"];
+  const iso = ts => ts ? new Date(ts).toISOString() : "";
+  const esc = v => { v = v == null ? "" : String(v); return /[",\r\n]/.test(v) || /^\s|\s$/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+
+  function toCSV() {
+    const rows = [COLS];
+    for (const t of tasks) {
+      const status = t.deletedAt ? "trash" : t.done ? "completed" : "active";
+      rows.push(["task", t.id, "", t.text, t.pri, t.due || "", status, iso(t.doneAt), iso(t.deletedAt), iso(t.created)]);
+      for (const s of t.subs) rows.push(["subtask", s.id, t.id, s.text, "", "", s.done ? "completed" : "active", "", "", ""]);
+    }
+    return "﻿" + rows.map(r => r.map(esc).join(",")).join("\r\n") + "\r\n";
+  }
+
+  function parseCSV(text) {
+    text = text.replace(/^﻿/, "");
+    const rows = []; let row = [], field = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; }
+        else field += c;
+      } else if (c === '"') q = true;
+      else if (c === ",") { row.push(field); field = ""; }
+      else if (c === "\n" || c === "\r") {
+        if (c === "\r" && text[i + 1] === "\n") i++;
+        row.push(field); rows.push(row); row = []; field = "";
+      } else field += c;
+    }
+    if (field !== "" || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(v => v.trim() !== ""));
+  }
+
+  const ms = v => { const n = Date.parse(v); return isNaN(n) ? null : n; };
+  function fromCSV(text) {
+    const rows = parseCSV(text);
+    if (!rows.length) throw new Error("The file is empty.");
+    const head = rows[0].map(h => h.trim().toLowerCase());
+    const has = n => head.includes(n);
+    let body = rows.slice(1);
+    let col = n => head.indexOf(n);
+    if (!has("text") && !has("task") && !has("title")) {
+      // No header we recognise: treat the first column of every row as a task name
+      body = rows; col = n => (n === "text" ? 0 : -1);
+    }
+    const textCol = col("text") >= 0 ? col("text") : col("task") >= 0 ? col("task") : col("title");
+    const get = (r, n) => { const i = n === "text" ? textCol : col(n); return i >= 0 && r[i] != null ? r[i].trim() : ""; };
+    const out = [], idMap = new Map(); let lastTask = null, subsN = 0;
+    for (const r of body) {
+      const text = get(r, "text"); if (!text) continue;
+      const type = get(r, "type").toLowerCase();
+      const status = get(r, "status").toLowerCase();
+      if (type === "subtask") {
+        const parent = idMap.get(get(r, "parent_id")) || lastTask;
+        if (!parent) continue;
+        parent.subs.push({ id: newId(), text, done: status === "completed" || status === "done" });
+        subsN++; continue;
+      }
+      let pri = get(r, "priority").toLowerCase(); if (!PRI_ORDER.hasOwnProperty(pri)) pri = "normal";
+      const due = /^\d{4}-\d{2}-\d{2}$/.test(get(r, "due")) ? get(r, "due") : "";
+      const done = status === "completed" || status === "done";
+      const t = { id: newId(), text, pri, due, done, doneAt: done ? (ms(get(r, "done_at")) || Date.now()) : null,
+        deletedAt: status === "trash" ? (ms(get(r, "deleted_at")) || Date.now()) : null, subs: [],
+        created: ms(get(r, "created_at")) || Date.now() };
+      if (get(r, "id")) idMap.set(get(r, "id"), t);
+      out.push(t); lastTask = t;
+    }
+    if (!out.length) throw new Error("No tasks found. The file needs a \"text\" column, or task names in the first column.");
+    return { list: out, subsN };
+  }
+
+  // Export
+  let downloads = null;
+  const inClaude = !!(window.claude && window.claude.use);
+  if (inClaude) window.claude.use("downloads").then(d => { downloads = d; $("exportBtn").hidden = !d; }).catch(() => { $("exportBtn").hidden = true; });
+  $("exportBtn").addEventListener("click", async () => {
+    const stamp = todayISO;
+    if (!inClaude) {
+      // Standalone file: ordinary browser download
+      const url = URL.createObjectURL(new Blob([toCSV()], { type: "text/csv;charset=utf-8" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = `todo-${stamp}.csv`; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast(`Exported ${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`, null);
+      return;
+    }
+    if (!downloads) { showToast("Export isn't available in this view.", null); return; }
+    try {
+      await downloads.save({ filename: `todo-${stamp}.csv`, data: toCSV() });
+      showToast(`Exported ${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`, null);
+    } catch (e) {
+      if (e && e.code === "declined") return;
+      if (e && e.code === "rate_limited") showToast("A save prompt is already open. Try again in a moment.", null);
+      else showToast("Couldn't export the file here.", null);
+    }
+  });
+
+  // Import
+  let pending = null;
+  function openDlg() { $("importDlg").hidden = false; $("dlgScrim").hidden = false; }
+  function closeDlg() { $("importDlg").hidden = true; $("dlgScrim").hidden = true; pending = null; $("importFile").value = ""; $("dlgReplace").classList.remove("armed"); $("dlgReplace").textContent = "Replace my list"; }
+  $("importBtn").addEventListener("click", () => $("importFile").click());
+  $("importFile").addEventListener("change", () => {
+    const f = $("importFile").files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const show = (msg, ok) => {
+        $("dlgMsg").textContent = msg; $("dlgMsg").className = ok ? "" : "err";
+        $("dlgMerge").hidden = $("dlgReplace").hidden = !ok; openDlg();
+        (ok ? $("dlgMerge") : $("dlgCancel")).focus();
+      };
+      try {
+        pending = fromCSV(String(reader.result));
+        const n = pending.list.length;
+        show(`${f.name} has ${n} ${n === 1 ? "task" : "tasks"}${pending.subsN ? ` and ${pending.subsN} subtasks` : ""}. Add them to your list, or replace everything you have now?`, true);
+      } catch (err) { pending = null; show(`Couldn't read ${f.name}. ${err.message}`, false); }
+    };
+    reader.onerror = () => { $("dlgMsg").textContent = "Couldn't open that file."; $("dlgMsg").className = "err"; $("dlgMerge").hidden = $("dlgReplace").hidden = true; openDlg(); };
+    reader.readAsText(f);
+  });
+  $("dlgCancel").addEventListener("click", closeDlg);
+  $("dlgScrim").addEventListener("click", closeDlg);
+  $("dlgMerge").addEventListener("click", () => {
+    if (!pending) return closeDlg();
+    const before = snapshot(), n = pending.list.length;
+    tasks = tasks.concat(pending.list); save(); closeDlg(); render();
+    showToast(`Added ${n} imported ${n === 1 ? "task" : "tasks"}`, before);
+  });
+  $("dlgReplace").addEventListener("click", () => {
+    if (!pending) return closeDlg();
+    const b = $("dlgReplace");
+    if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Confirm replace"; return; }
+    const before = snapshot(), n = pending.list.length;
+    tasks = pending.list; save(); closeDlg(); render();
+    showToast(`Replaced your list with ${n} imported ${n === 1 ? "task" : "tasks"}`, before);
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("importDlg").hidden) closeDlg(); });
+
+  $("undo").addEventListener("click", () => {
+    if (!undoState) return;
+    tasks = undoState; undoState = null; armed = null; save(); render();
+    $("toast").hidden = true;
+  });
+
+  try { doneOpen = localStorage.getItem("todo.doneOpen") === "1"; } catch (e) {}
+  render();
+})();
+</script>
+
+</body>
+</html>
