@@ -1,0 +1,65 @@
+
+import { Injectable } from '@angular/core';
+import { ActivatedRouteSnapshot, NavigationEnd, Router } from '@angular/router';
+import { filter } from 'rxjs/operators';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class RouteTrackingService {
+  private currentRoute = '';
+
+  constructor(private router: Router) {
+    this.router.events
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      .subscribe(() => {
+        this.currentRoute = this.buildRouteTemplate();
+      });
+  }
+
+  /**
+   * Returns the current screen route as a template, without real data.
+   * e.g. /home/establishment/profile/:registrationNo/view/contributor-list
+   */
+  getCurrentRoute(): string {
+    return this.currentRoute || this.buildRouteTemplate();
+  }
+
+  /**
+   * Builds the route from the route config paths (e.g. ':registrationNo')
+   * instead of the actual URL values, so no IDs or personal data are sent.
+   */
+  private buildRouteTemplate(): string {
+    const segments: string[] = [];
+    let snapshot: ActivatedRouteSnapshot | null = this.router.routerState.snapshot.root;
+
+    while (snapshot) {
+      const path = snapshot.routeConfig?.path;
+      if (path) {
+        segments.push(path);
+      }
+      snapshot = snapshot.firstChild;
+    }
+
+    if (segments.length) {
+      return '/' + segments.join('/');
+    }
+    // Fallback: mask any remaining data in the raw URL
+    return this.maskRawUrl(this.router.url);
+  }
+
+  /**
+   * Fallback masking: removes query params and replaces numeric / long ID segments.
+   */
+  private maskRawUrl(url: string): string {
+    if (!url) {
+      return '';
+    }
+    return url
+      .split('?')[0]
+      .split('#')[0]
+      .split('/')
+      .map(segment => (/^\d+$/.test(segment) || /^[A-Za-z0-9-]{20,}$/.test(segment) ? ':id' : segment))
+      .join('/');
+  }
+}
